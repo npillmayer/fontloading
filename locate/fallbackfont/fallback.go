@@ -18,6 +18,8 @@ func tracer() tracing.Trace {
 //go:embed packaged/*
 var packaged embed.FS
 
+const defaultFallbackFilename = "Go-Regular.otf"
+
 func Find() locate.FontLocator {
 	return func(descr fontfind.Descriptor) (fontfind.ScalableFont, error) {
 		pattern := descr.Pattern
@@ -25,6 +27,21 @@ func Find() locate.FontLocator {
 		weight := descr.Weight
 		return FindFallbackFont(pattern, style, weight)
 	}
+}
+
+// Default returns the default packaged fallback font.
+func Default() (fontfind.ScalableFont, error) {
+	// Ensure packaged default exists in embedded resources.
+	if _, err := packaged.Open("packaged/" + defaultFallbackFilename); err != nil {
+		return fontfind.NullFont, err
+	}
+	return fontfind.ScalableFont{
+		Name:       defaultFallbackFilename,
+		Path:       "packaged/" + defaultFallbackFilename,
+		FileSystem: packaged,
+		Style:      font.StyleNormal,
+		Weight:     font.WeightNormal,
+	}, nil
 }
 
 func FindFallbackFont(pattern string, style font.Style, weight font.Weight) (fontfind.ScalableFont, error) {

@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/npillmayer/fontfind"
+	"github.com/npillmayer/fontfind/locate/fallbackfont"
 	"github.com/npillmayer/schuko/tracing"
 	xfont "golang.org/x/image/font"
 )
@@ -36,6 +37,8 @@ func NewRegistry() *Registry {
 	return fr
 }
 
+const fallbackTypefaceKey = "fallback"
+
 // StoreTypeface pushes a typeface into the registry if it isn't contained yet.
 //
 // The typeface will be stored using the normalized font name as a key. If this
@@ -65,23 +68,44 @@ func (fr *Registry) Typeface(normalizedName string) (fontfind.ScalableFont, erro
 	//
 	tracer().Debugf("registry searches for font %s", normalizedName)
 	fr.Lock()
-	defer fr.Unlock()
 	if t, ok := fr.typefaces[normalizedName]; ok {
+		fr.Unlock()
 		tracer().Infof("registry found font %s", normalizedName)
 		return t, nil
 	}
+	fr.Unlock()
 	tracer().Infof("registry does not contain font %s", normalizedName)
-	err := fmt.Errorf("font %s not found in registry", normalizedName)
-	//
-	// store typecase from fallback font, if not present yet, and return it
-	fname := "fallback"
-	if t, ok := fr.typefaces[fname]; ok {
-		return t, err
+	missErr := fmt.Errorf("font %s not found in registry", normalizedName)
+	f, fallbackErr := fr.FallbackTypeface()
+	if fallbackErr != nil {
+		return fontfind.NullFont, fmt.Errorf("%w; fallback failed: %v", missErr, fallbackErr)
 	}
-	f := fontfind.FallbackFont()
-	tracer().Infof("font registry caches fallback font %s", fname)
-	fr.typefaces[fname] = f
-	return f, err
+	return f, missErr
+}
+
+// FallbackTypeface returns the default fallback typeface from registry cache.
+// If absent, it will load and cache the packaged fallback under key "fallback".
+func (fr *Registry) FallbackTypeface() (fontfind.ScalableFont, error) {
+	fr.Lock()
+	if t, ok := fr.typefaces[fallbackTypefaceKey]; ok {
+		fr.Unlock()
+		return t, nil
+	}
+	fr.Unlock()
+
+	f, err := fallbackfont.Default()
+	if err != nil {
+		return fontfind.NullFont, err
+	}
+	fr.Lock()
+	defer fr.Unlock()
+	// Another goroutine may have inserted fallback while we were loading.
+	if t, ok := fr.typefaces[fallbackTypefaceKey]; ok {
+		return t, nil
+	}
+	tracer().Infof("font registry caches fallback font %s", fallbackTypefaceKey)
+	fr.typefaces[fallbackTypefaceKey] = f
+	return f, nil
 }
 
 // LogFontList is a helper function to dump the list of the typefaces konwn to a

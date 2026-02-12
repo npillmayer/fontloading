@@ -40,6 +40,7 @@ Copyright © Norbert Pillmayer <norbert@pillmayer.com>
 package fontfind
 
 import (
+	"embed"
 	"errors"
 	"io/fs"
 
@@ -89,9 +90,18 @@ func FindTypeface(typefaceName string, style font.Style, weight font.Weight) ([]
 	return nil, errors.New("no font file found")
 }
 
-// TODO
+//go:embed locate/fallbackfont/packaged/Go-Regular.otf
+var fallbackFS embed.FS
+
+// FallbackFont returns the default packaged fallback font.
 func FallbackFont() ScalableFont {
-	panic("fallback fonts not yet implemented")
+	return ScalableFont{
+		Name:       "Go-Regular.otf",
+		Path:       "locate/fallbackfont/packaged/Go-Regular.otf",
+		FileSystem: fallbackFS,
+		Style:      font.StyleNormal,
+		Weight:     font.WeightNormal,
+	}
 }
 
 // ---------------------------------------------------------------------------

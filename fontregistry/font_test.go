@@ -57,3 +57,40 @@ func TestNormalizeFont(t *testing.T) {
 		t.Errorf("expected different normalized name for clarendon")
 	}
 }
+
+func TestRegistryFallbackTypeface(t *testing.T) {
+	teardown := gotestingadapter.QuickConfig(t, "resources")
+	defer teardown()
+	//
+	fr := NewRegistry()
+	f, err := fr.FallbackTypeface()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.FileSystem == nil {
+		t.Fatal("expected fallback font filesystem to be set")
+	}
+	if f.Path == "" {
+		t.Fatal("expected fallback font path to be set")
+	}
+	if f.Name != "Go-Regular.otf" {
+		t.Fatalf("expected fallback font Go-Regular.otf, got %s", f.Name)
+	}
+}
+
+func TestRegistryTypefaceReturnsFallbackOnMiss(t *testing.T) {
+	teardown := gotestingadapter.QuickConfig(t, "resources")
+	defer teardown()
+	//
+	fr := NewRegistry()
+	f, err := fr.Typeface("font-not-in-registry")
+	if err == nil {
+		t.Fatal("expected miss error from registry lookup")
+	}
+	if f.FileSystem == nil {
+		t.Fatal("expected fallback font filesystem to be set")
+	}
+	if f.Name != "Go-Regular.otf" {
+		t.Fatalf("expected fallback font Go-Regular.otf, got %s", f.Name)
+	}
+}
