@@ -19,6 +19,8 @@ func tracer() tracing.Trace {
 	return tracing.Select("tyse.font")
 }
 
+var USE_SYSTEM_IO IO = nil
+
 // Find creates a FontLocator that resolves fonts from local system sources.
 //
 // appkey identifies the caller's config area used for fontconfig list lookup.

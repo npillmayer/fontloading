@@ -2,9 +2,13 @@
 
 ## Purpose
 
-`fallbackfont` resolves fonts from embedded package assets.
+`fallbackfont` resolves fonts from embedded package assets. As we are in a Go eco-sytem,
+these are the
+[Go fonts](https://go.dev/blog/go-fonts),
+packaged and embedded (in OTF format).
 
-It is the deterministic last-resort provider and contains the default packaged fallback (`Go-Regular.otf`).
+It is also the deterministic last-resort provider and contains the default packaged fallback
+(`Go-Regular.otf`).
 
 ## API
 
@@ -17,8 +21,8 @@ It is the deterministic last-resort provider and contains the default packaged f
 ### 1. Use as final resolver in a chain
 
 ```go
-fallback := fallbackfont.Find()
-sf, err := locate.ResolveFontLoc(desc, system, google, fallback).Font()
+fallbackSearcher := fallbackfont.Find()
+sf, err := locate.ResolveFontLoc(desc, system, google, fallbackSearcher).Font()
 ```
 
 ### 2. Access default fallback directly

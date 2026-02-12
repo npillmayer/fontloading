@@ -13,14 +13,11 @@ func tracer() tracing.Trace {
 	return tracing.Select("tyse.font")
 }
 
-// Find creates a FontLocator for Google Fonts using default host I/O.
-func Find(conf schuko.Configuration) locate.FontLocator {
-	return FindWithIO(conf, nil)
-}
+var USE_SYSTEM_IO IO = nil
 
-// FindWithIO creates a FontLocator for Google Fonts with injectable host I/O.
-// hostio may be nil to use the OS-backed default implementation.
-func FindWithIO(conf schuko.Configuration, hostio IO) locate.FontLocator {
+// Find creates a FontLocator for Google Fonts using default host I/O.
+// hostio may be nil (USE_SYSTEM_IO) to use the OS-backed default implementation.
+func Find(conf schuko.Configuration, hostio IO) locate.FontLocator {
 	svc := newGoogleService(hostio)
 	return func(descr fontfind.Descriptor) (fontfind.ScalableFont, error) {
 		pattern := descr.Pattern

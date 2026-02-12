@@ -53,7 +53,7 @@ func TestResolveGoogleFont(t *testing.T) {
 		Style:   font.StyleNormal,
 		Weight:  font.WeightNormal,
 	}
-	google := googlefont.Find(conf)
+	google := googlefont.Find(conf, googlefont.USE_SYSTEM_IO)
 	loader := locate.ResolveFontLoc(desc, google)
 	_, err := loader.Font()
 	if err != nil {

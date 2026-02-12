@@ -4,7 +4,11 @@
 
 `systemfont` resolves fonts from local machine sources.
 
-It prefers a fontconfig list (`fontlist.txt` under the app config area) and falls back to platform directory scanning.
+It prefers a fontconfig list (`fontlist.txt` under the app config area) and falls back to platform directory scanning. `fontlist.txt` is the output of fontconfig command `fc-list`. Place it into
+`os.UserConfigDir()`/*myapp*/*fontlist.txt*, with «*myapp*» being the shortname of your application.
+
+See package os: 
+[os.UserConfigDir](https://pkg.go.dev/os#UserConfigDir)
 
 ## API
 
@@ -14,23 +18,14 @@ It prefers a fontconfig list (`fontlist.txt` under the app config area) and fall
 
 `appkey` determines where fontconfig list data is looked up.
 
-## Example Applications
-
-### 1. Standard local lookup
+## Example
 
 ```go
-system := systemfont.Find("myapp", nil)
-sf, err := system(fontfind.Descriptor{
+desc := fontfind.Descriptor{
 	Pattern: "Noto Sans",
 	Style:   font.StyleNormal,
 	Weight:  font.WeightNormal,
-})
-```
-
-### 2. Fixture-based lookup in tests
-
-```go
-mockIO := newTestIO() // implements systemfont.IO
-system := systemfont.Find("tyse-test", mockIO)
-sf, err := locate.ResolveFontLoc(desc, system).Font()
+}
+systemSearcher := systemfont.Find("myapp", nil)
+font, err := locate.ResolveFontLoc(desc, systemSearcher).Font()
 ```

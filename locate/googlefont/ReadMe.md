@@ -4,35 +4,30 @@
 
 `googlefont` resolves fonts via the Google Fonts directory API and caches downloaded files locally.
 
-The package supports I/O abstraction so tests can run offline with fixture JSON and fake network responses.
-
 ## API
 
 - `type IO` (env/http/fs abstraction)
-- `Find(conf) locate.FontLocator`
-- `FindWithIO(conf, hostio) locate.FontLocator`
+- `Find(conf, io) locate.FontLocator`
 - `FindGoogleFont(conf, pattern, style, weight) (fontfind.ScalableFont, error)`
 - `ListGoogleFonts(conf, pattern)`
 - `SimpleConfig(appkey) schuko.Configuration`
 
 Configuration note:
 
-- requires `google-fonts-api-key` in config or `GOOGLE_FONTS_API_KEY` in env for live API usage.
+Live API usage requires a Google web-fonts API key, either
+  - under key `google-fonts-api-key` in configuration `conf`, or
+  - `GOOGLE_FONTS_API_KEY` set to a valid API key
 
-## Example Applications
+## Example: Resolve and cache a Google font
 
-### 1. Resolve and cache a Google font
+Clients must provide an application shortname. This shortname is used to
+find/create the cache directory for downloaded font files.
+For `appkey` equal to *myapp*, cached fonts will be located in `os.UserCacheDir()`/*myapp*.
+(See package os: 
+[os.UserCacheDir](https://pkg.go.dev/os#UserCacheDir))
 
 ```go
-conf := googlefont.SimpleConfig("myapp")
-resolver := googlefont.Find(conf)
+conf := googlefont.SimpleConfig("myapp") // provide your application shortname
+resolver := googlefont.Find(conf, nil)
 sf, err := locate.ResolveFontLoc(desc, resolver).Font()
-```
-
-### 2. Test with offline fixture-driven I/O
-
-```go
-fake := newFakeIO(t) // implements googlefont.IO
-resolver := googlefont.FindWithIO(conf, fake)
-sf, err := resolver(desc)
 ```

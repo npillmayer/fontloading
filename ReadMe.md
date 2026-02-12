@@ -55,50 +55,37 @@ Resolution behavior:
 - `locate/systemfont`: local/system lookup (`Find`, `FindLocalFont`)
 - `locate/googlefont`: Google Fonts lookup + cache (`Find`, `FindWithIO`, `FindGoogleFont`)
 
+See the documentation in the sub-packages for more details.
+
 ## Example Applications
 
-### 1. General app font resolution (system -> Google -> embedded fallback)
+### 1. General app font resolution
+
+This example will search for: system fonts -> embedded fallback fonts, i.e.
+[Go fonts](https://go.dev/blog/go-fonts).
 
 ```go
-package main
-
-import (
-	"fmt"
-	"log"
-
-	"github.com/npillmayer/fontfind"
-	"github.com/npillmayer/fontfind/locate"
-	"github.com/npillmayer/fontfind/locate/fallbackfont"
-	"github.com/npillmayer/fontfind/locate/googlefont"
-	"github.com/npillmayer/fontfind/locate/systemfont"
-	"golang.org/x/image/font"
-)
-
-func main() {
-	desc := fontfind.Descriptor{
-		Pattern: "Noto Sans",
-		Style:   font.StyleNormal,
-		Weight:  font.WeightNormal,
-	}
-
-	conf := googlefont.SimpleConfig("myapp") // uses GOOGLE_FONTS_API_KEY if needed
-	system := systemfont.Find("myapp", nil)
-	google := googlefont.Find(conf)
-	fallback := fallbackfont.Find()
-
-	promise := locate.ResolveFontLoc(desc, system, google, fallback)
-	sf, err := promise.Font()
-	if err != nil {
-		// err may be non-nil while sf is still a usable fallback font
-		log.Printf("font lookup degraded: %v", err)
-	}
-
-	data, err := sf.ReadFontData()
-	if err != nil {
-		log.Fatal(err)
-	}
-	fmt.Printf("resolved %s (%s), %d bytes\n", sf.Name, sf.Path(), len(data))
+desc := fontfind.Descriptor{
+	Pattern: "Noto Sans",
+	Style:   font.StyleNormal,
+	Weight:  font.WeightNormal,
 }
+
+system := systemfont.Find("myapp", USE_SYSTEM_IO)
+fallback := fallbackfont.Find()
+
+promise := locate.ResolveFontLoc(desc, system, google, fallback)
+sf, err := promise.Font()
+if err != nil {
+	// err may be non-nil while sf is still a usable fallback font
+	log.Printf("font lookup degraded: %v", err)
+}
+
+data, err := sf.ReadFontData()
+if err != nil {
+	log.Fatal(err)
+}
+fmt.Printf("resolved %s (%s), %d bytes\n", sf.Name, sf.Path(), len(data))
 ```
 
 ### 2. Timeout-aware async resolution
@@ -106,41 +93,20 @@ func main() {
 Use a context-aware resolver and wait with cancellation/deadline control.
 
 ```go
-package main
-
-import (
-	"context"
-	"fmt"
-	"time"
-
-	"github.com/npillmayer/fontfind"
-	"github.com/npillmayer/fontfind/locate"
-	"golang.org/x/image/font"
-)
-
-func main() {
-	desc := fontfind.Descriptor{
-		Pattern: "Any",
-		Style:   font.StyleNormal,
-		Weight:  font.WeightNormal,
-	}
-
-	resolver := func(ctx context.Context, d fontfind.Descriptor) (fontfind.ScalableFont, error) {
-		select {
-		case <-ctx.Done():
-			return fontfind.NullFont, ctx.Err()
-		case <-time.After(50 * time.Millisecond):
-			return fontfind.FallbackFont(), nil
-		}
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
-	defer cancel()
-
-	promise := locate.ResolveFontLocWithContext(ctx, desc, resolver)
-	_, err := promise.FontWithContext(ctx)
-	fmt.Println("result:", err) // context deadline exceeded
+desc := fontfind.Descriptor{
+	Pattern: "Any",
+	Style:   font.StyleNormal,
+	Weight:  font.WeightNormal,
 }
+
+myLongRunningResolver := …   // client-provided resolver
+
+ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+defer cancel()
+
+promise := locate.ResolveFontLocWithContext(ctx, desc, myLongRunningResolver)
+_, err := promise.FontWithContext(ctx)
+fmt.Println("result:", err) // context deadline exceeded
 ```
 
 ### 3. Embedded-only/offline deployments
@@ -148,19 +114,23 @@ func main() {
 For fully offline systems, use only the fallback resolver:
 
 ```go
-desc := fontfind.Descriptor{Pattern: "Go", Style: font.StyleNormal, Weight: font.WeightNormal}
+desc := fontfind.Descriptor{
+	Pattern: "Go",
+	Style: font.StyleNormal,
+	Weight: font.WeightNormal
+}
 promise := locate.ResolveFontLoc(desc, fallbackfont.Find())
 sf, err := promise.Font()
 ```
 
-This keeps runtime dependencies minimal and still guarantees a packaged font.
+This will return a packaged
+[Go font](https://go.dev/blog/go-fonts).
 
 ## Notes
 
-- Google Fonts access requires a valid API key (`GOOGLE_FONTS_API_KEY`) for live directory fetches.
-- TTC (`*.ttc`) handling is intentionally limited at the moment.
-- The registry caches results globally within the process.
+- Google Fonts access requires a valid Google API key (`GOOGLE_FONTS_API_KEY`) for live directory fetches.
+- TTC (`*.ttc`) handling is not yet implemented.
 
 ## License
 
-BSD 3-Clause. See `/Users/npi/prg/go/fontfind/LICENSE`.
+BSD 3-Clause. See `LICENSE` file in the top-level directory.
