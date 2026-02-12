@@ -2,7 +2,9 @@ package googlefont
 
 import (
 	"errors"
+	"fmt"
 	"io"
+	"net/http"
 	"path"
 
 	"github.com/npillmayer/schuko"
@@ -15,7 +17,13 @@ func downloadCachedFile(hostio IO, filepath string, url string) error {
 	if err != nil {
 		return err
 	}
+	if resp == nil {
+		return errors.New("download request returned nil response")
+	}
 	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download request failed: %s", resp.Status)
+	}
 	out, err := hostio.Create(filepath)
 	if err != nil {
 		return err

@@ -2,6 +2,8 @@ package googlefont
 
 import (
 	"bytes"
+	"io"
+	"net/http"
 	"os"
 	"path"
 	"testing"
@@ -35,5 +37,34 @@ func TestCacheDownload(t *testing.T) {
 	}
 	if !bytes.Equal(got, []byte(payload)) {
 		t.Fatalf("cached file differs from response payload")
+	}
+}
+
+type failingStatusIO struct {
+	*fakeIO
+	status int
+}
+
+func (f failingStatusIO) HTTPGet(u string) (*http.Response, error) {
+	return &http.Response{
+		StatusCode: f.status,
+		Status:     "502 Bad Gateway",
+		Body:       io.NopCloser(bytes.NewReader(nil)),
+		Header:     make(http.Header),
+	}, nil
+}
+
+func TestCacheDownloadHTTPStatusError(t *testing.T) {
+	hostio := failingStatusIO{
+		fakeIO: newFakeIO(t),
+		status: http.StatusBadGateway,
+	}
+	dst := path.Join(t.TempDir(), "test.svg")
+	err := downloadCachedFile(hostio, dst, "https://example.test/failure.svg")
+	if err == nil {
+		t.Fatal("expected download failure for non-200 status")
+	}
+	if _, statErr := os.Stat(dst); statErr == nil {
+		t.Fatal("expected no file to be created for failed download")
 	}
 }
