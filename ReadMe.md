@@ -8,7 +8,10 @@ The package is built around one practical goal: given a font request (`family pa
 - local/system fonts
 - Google Fonts (with local caching)
 
-The resolver pipeline is cache-backed (`fontregistry`) and designed so callers can still receive a fallback font object even when the requested font cannot be found.
+Clients may bring their own font-search providers, which must be of function type
+`locate.FontLocator`.
+
+The resolver pipeline is cache-backed (see sub-package `fontregistry`) and designed so callers can still receive a fallback font object even when the requested font cannot be found.
 
 ## Installation
 
@@ -57,7 +60,7 @@ Resolution behavior:
 
 See the documentation in the sub-packages for more details.
 
-## Example Applications
+## Examples
 
 ### 1. General app font resolution
 
@@ -74,7 +77,8 @@ desc := fontfind.Descriptor{
 system := systemfont.Find("myapp", USE_SYSTEM_IO)
 fallback := fallbackfont.Find()
 
-promise := locate.ResolveFontLoc(desc, system, google, fallback)
+promise := locate.ResolveFontLoc(desc, system, fallback)
+// …
 sf, err := promise.Font()
 if err != nil {
 	// err may be non-nil while sf is still a usable fallback font
