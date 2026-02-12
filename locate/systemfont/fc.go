@@ -25,26 +25,18 @@ func findFontListConfigDir(appkey string, io IO) (fs.FS, error) {
 		return nil, fmt.Errorf("cannot open user configuration directory: %w", err)
 	}
 	fontListConfigDir := path.Join(uconfdir, appkey)
+	tracer().Debugf("fontListConfigDir base = %v", fontListConfigDir)
 	return fs.Sub(io.DirFS(fontListConfigDir), "fontconfig")
 }
 
-func findFontList(appkey string, io IO) ([]byte, error) {
+func findFontList(appkey string, io IO) (list []byte, err error) {
 	const listfile = "fontlist.txt"
-	configFS, err := findFontListConfigDir(appkey, io)
+	var configFS fs.FS
+	configFS, err = findFontListConfigDir(appkey, io)
 	if err != nil {
 		return nil, err
 	}
-	if b, err := readFile(configFS, listfile, io); err == nil {
-		return b, nil
-	}
-	// Backward-compat fallback: some callers may keep fontlist.txt directly
-	// under "<appkey>" instead of "<appkey>/fontconfig".
-	uconfdir, err := io.UserConfigDir()
-	if err != nil {
-		return nil, err
-	}
-	legacyFS := io.DirFS(path.Join(uconfdir, appkey))
-	return readFile(legacyFS, listfile, io)
+	return readFile(configFS, listfile, io)
 }
 
 func readFile(fsys fs.FS, name string, io IO) ([]byte, error) {

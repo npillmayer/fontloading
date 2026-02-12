@@ -78,15 +78,19 @@ Completed in current refactor cycle:
 - Introduced `googlefont.IO` abstraction and service-based internals for host/network decoupling.
 - Added `FindWithIO(...)` to inject fake I/O in tests while keeping existing public API intact.
 - Migrated Google-font tests to fixture-driven fake I/O and removed default runtime network dependency.
+- Added explicit fallback APIs and behavior:
+  - `fallbackfont.Default()`
+  - `fontregistry.FallbackTypeface()` cached under key `"fallback"`
+  - `fontfind.FallbackFont()` now returns embedded `Go-Regular.otf` (no panic)
+- Reconnected `ResolveTypeface` search flow with `fontregistry` cache (lookup + store + fallback on miss).
+- Replaced first-variant Google selection with confidence-based variant selection.
 
 ## Known Gaps and Risks
 
 The codebase explicitly marks several unfinished areas:
 
 - TTC support not implemented (`*.ttc` skipped in comments and parser behavior)
-- `fontfind.FallbackFont()` currently `panic("fallback fonts not yet implemented")`
 - `locate` package comment calls current implementation a stand-in/quick hack
-- Google variant selection currently picks first variant (`fi.Variants[0]`) instead of best match
 - async resolve API has TODO for context/cancellation integration
 - `systemfont` fontconfig loader uses package-global cache state (`sync.Once` + globals), which may complicate test isolation for future cases
 - `googlefont` default singleton service caches directory state (`sync.Once`), so cross-test/process behavior should be watched when adding more cases
@@ -98,24 +102,22 @@ Quality and consistency issues observed:
 ## Implementation Notes (What Already Works)
 
 - Embedded fallback fonts are packaged and can resolve basic matches.
+- Fallback access is explicit and deterministic (`fallbackfont.Default`, registry key `"fallback"`).
 - System font path can use a pre-generated fontconfig list, then fallback to `go-findfont`.
 - Google Fonts lookup and caching pipeline is implemented with injectable host I/O for deterministic testing.
-- Matching confidence model (`No/Low/High/Perfect`) exists and is used by local/google matching paths.
+- Matching confidence model (`No/Low/High/Perfect`) is used by local/google matching paths, including Google variant choice.
+- `ResolveTypeface` now reuses and fills `fontregistry` as intended by design.
 
 ## Suggested Direction (Starting Backlog)
 
-1. Remove runtime panic path:
-   - implement `fontfind.FallbackFont()` via `locate/fallbackfont`, or remove/deprecate API until ready
-2. Improve match quality:
-   - replace `fi.Variants[0]` with confidence-based variant selection
-3. Registry integration pass:
-   - reconnect `ResolveTypeface` search flow with `fontregistry` cache (currently mostly commented out)
-4. Documentation baseline:
+1. Documentation baseline:
    - add `README.md` with usage examples, resolver order, config keys, and test modes
-5. Complete TTC story: (NOT A NEAR-TERM GOAL)
+2. Complete TTC story: (NOT A NEAR-TERM GOAL)
    - decide parse/load strategy for `.ttc` and implement at least first readable variant support
-6. Add more deterministic tests around resolver state:
+3. Add more deterministic tests around resolver state:
    - ensure singleton/service cache behavior does not leak across tests
+4. Resolve API cancellation:
+   - add context-aware variant of `ResolveTypeface` (existing TODO)
 
 ## Practical Project Direction
 

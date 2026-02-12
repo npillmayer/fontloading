@@ -72,13 +72,13 @@ func FindLocalFont(appkey string, io IO, pattern string, style font.Style, weigh
 	variants, _ := findFontConfigFont(appkey, io, pattern, style, weight)
 	if variants.Family != "" {
 		if fsys, path, err := wrapDirFS(variants.Path); err == nil {
-			return fontfind.ScalableFont{
-				Name:       pattern,
-				Weight:     weight,
-				Style:      style,
-				FileSystem: fsys,
-				Path:       path,
-			}, nil
+			sfnt := fontfind.ScalableFont{
+				Name:   pattern,
+				Weight: weight,
+				Style:  style,
+			}
+			sfnt.SetFS(fsys, path)
+			return sfnt, nil
 		}
 		return fontfind.NullFont, errors.New("path error with fontconfig file path")
 	}
@@ -91,13 +91,13 @@ func FindLocalFont(appkey string, io IO, pattern string, style font.Style, weigh
 	if err == nil && fpath != "" {
 		tracer().Debugf("%s is a system font: %s", pattern, fpath)
 		if fsys, path, err := wrapDirFS(fpath); err == nil {
-			return fontfind.ScalableFont{
-				Name:       pattern,
-				Weight:     weight,
-				Style:      style,
-				FileSystem: fsys,
-				Path:       path,
-			}, nil
+			sfnt := fontfind.ScalableFont{
+				Name:   pattern,
+				Weight: weight,
+				Style:  style,
+			}
+			sfnt.SetFS(fsys, path)
+			return sfnt, nil
 		}
 		return fontfind.NullFont, errors.New("path error with system font file path")
 	}

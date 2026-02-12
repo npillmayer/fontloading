@@ -35,13 +35,14 @@ func Default() (fontfind.ScalableFont, error) {
 	if _, err := packaged.Open("packaged/" + defaultFallbackFilename); err != nil {
 		return fontfind.NullFont, err
 	}
-	return fontfind.ScalableFont{
-		Name:       defaultFallbackFilename,
-		Path:       "packaged/" + defaultFallbackFilename,
-		FileSystem: packaged,
-		Style:      font.StyleNormal,
-		Weight:     font.WeightNormal,
-	}, nil
+	path := "packaged/" + defaultFallbackFilename
+	sfnt := fontfind.ScalableFont{
+		Name:   defaultFallbackFilename,
+		Style:  font.StyleNormal,
+		Weight: font.WeightNormal,
+	}
+	sfnt.SetFS(packaged, path)
+	return sfnt, nil
 }
 
 func FindFallbackFont(pattern string, style font.Style, weight font.Weight) (fontfind.ScalableFont, error) {
@@ -64,9 +65,8 @@ func FindFallbackFont(pattern string, style font.Style, weight font.Weight) (fon
 	}
 	// font is packaged embedded font
 	sFont.Name = fname
-	sFont.Path = "packaged/" + fname
-	sFont.FileSystem = packaged
 	sFont.Style = style
 	sFont.Weight = weight
+	sFont.SetFS(packaged, "packaged/"+fname)
 	return sFont, nil
 }

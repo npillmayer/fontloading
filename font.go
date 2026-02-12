@@ -75,10 +75,29 @@ type Descriptor struct {
 
 type ScalableFont struct {
 	Name       string
-	Path       string
-	FileSystem fs.FS
 	Style      font.Style
 	Weight     font.Weight
+	fileSystem fs.FS
+	path       string
+}
+
+func (f *ScalableFont) SetFS(fs fs.FS, path string) {
+	f.fileSystem = fs
+	f.path = path
+}
+
+func (f *ScalableFont) Path() string {
+	return f.path
+}
+
+func (f *ScalableFont) ReadFontData() ([]byte, error) {
+	if f.fileSystem == nil {
+		return nil, errors.New("no file system to read from")
+	}
+	if f.path == "" {
+		return nil, errors.New("path not set")
+	}
+	return fs.ReadFile(f.fileSystem, f.path)
 }
 
 var NullFont = ScalableFont{}
@@ -97,10 +116,10 @@ var fallbackFS embed.FS
 func FallbackFont() ScalableFont {
 	return ScalableFont{
 		Name:       "Go-Regular.otf",
-		Path:       "locate/fallbackfont/packaged/Go-Regular.otf",
-		FileSystem: fallbackFS,
 		Style:      font.StyleNormal,
 		Weight:     font.WeightNormal,
+		path:       "locate/fallbackfont/packaged/Go-Regular.otf",
+		fileSystem: fallbackFS,
 	}
 }
 

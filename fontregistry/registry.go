@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/npillmayer/fontfind"
-	"github.com/npillmayer/fontfind/locate/fallbackfont"
 	"github.com/npillmayer/schuko/tracing"
 	xfont "golang.org/x/image/font"
 )
@@ -44,7 +43,7 @@ const fallbackTypefaceKey = "fallback"
 // The typeface will be stored using the normalized font name as a key. If this
 // key is already associated with a font, that font will not be overridden.
 func (fr *Registry) StoreTypeface(normalizedName string, f fontfind.ScalableFont) {
-	if f.Name == "" || f.Path == "" {
+	if f.Name == "" {
 		tracer().Errorf("registry cannot store null font")
 		return
 	}
@@ -93,10 +92,7 @@ func (fr *Registry) FallbackTypeface() (fontfind.ScalableFont, error) {
 	}
 	fr.Unlock()
 
-	f, err := fallbackfont.Default()
-	if err != nil {
-		return fontfind.NullFont, err
-	}
+	f := fontfind.FallbackFont()
 	fr.Lock()
 	defer fr.Unlock()
 	// Another goroutine may have inserted fallback while we were loading.

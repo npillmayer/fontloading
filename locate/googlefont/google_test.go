@@ -134,15 +134,28 @@ func TestGoogleFindFont(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if f.Path != "Inconsolata-regular.ttf" {
-		t.Fatalf("unexpected cached font name %q", f.Path)
-	}
-	if f.FileSystem == nil {
-		t.Fatal("expected font filesystem to be set")
+	if f.Path() != "Inconsolata-regular.ttf" {
+		t.Fatalf("unexpected cached font name %q", f.Path())
 	}
 	_, err = svc.findGoogleFont(conf, "Inconsolata", font.StyleItalic, font.WeightNormal)
 	if err == nil {
 		t.Error("expected search for Inconsolata Italic to fail, did not")
+	}
+
+	f, err = svc.findGoogleFont(conf, "Anonymous Pro", font.StyleNormal, font.WeightNormal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Path() != "Anonymous Pro-regular.ttf" {
+		t.Fatalf("expected regular variant, got %q", f.Path())
+	}
+
+	f, err = svc.findGoogleFont(conf, "Anonymous Pro", font.StyleItalic, font.WeightNormal)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if f.Path() != "Anonymous Pro-italic.ttf" {
+		t.Fatalf("expected italic variant, got %q", f.Path())
 	}
 }
 

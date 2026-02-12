@@ -1,11 +1,14 @@
 package locate_test
 
 import (
+	"context"
+	"errors"
 	"io"
 	"io/fs"
 	"os"
 	"testing"
 	"testing/fstest"
+	"time"
 
 	"github.com/npillmayer/fontfind"
 	"github.com/npillmayer/fontfind/locate"
@@ -29,12 +32,9 @@ func TestLoadPackagedFont(t *testing.T) {
 	fallback := fallbackfont.Find()
 	loader := locate.ResolveTypeface(desc, fallback)
 	//time.Sleep(500)
-	f, err := loader.Typeface()
+	_, err := loader.Typeface()
 	if err != nil {
 		t.Error(err)
-	}
-	if f.FileSystem == nil {
-		t.Fatalf("font's filesystem is nil, cannot access font data")
 	}
 }
 
@@ -55,16 +55,10 @@ func TestResolveGoogleFont(t *testing.T) {
 	}
 	google := googlefont.Find(conf)
 	loader := locate.ResolveTypeface(desc, google)
-	//time.Sleep(500)
-	f, err := loader.Typeface()
+	_, err := loader.Typeface()
 	if err != nil {
 		t.Error(err)
 	}
-	if f.FileSystem == nil {
-		t.Fatalf("font's filesystem is nil, cannot access font data")
-	}
-	//
-	//fontregistry.GlobalRegistry().LogFontList()
 }
 
 var fclist = `
@@ -79,7 +73,7 @@ var fclist = `
 `
 
 func TestFCFind(t *testing.T) {
-	teardown := gotestingadapter.QuickConfig(t, "resources")
+	teardown := gotestingadapter.QuickConfig(t, "tyse.font")
 	defer teardown()
 	desc := fontfind.Descriptor{
 		Pattern: "Noto Sans Cham",
@@ -92,13 +86,125 @@ func TestFCFind(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected fixture-based systemfont hit, got error: %v", err)
 	}
-	if f.FileSystem == nil {
-		t.Fatalf("font's filesystem is nil, cannot access font data")
-	}
-	if f.Path != "NotoSansCham-Regular.ttf" {
-		t.Fatalf("expected path NotoSansCham-Regular.ttf, got %q", f.Path)
+	if f.Path() != "NotoSansCham-Regular.ttf" {
+		t.Fatalf("expected path NotoSansCham-Regular.ttf, got %q", f.Path())
 	}
 }
+
+func TestResolveTypefaceUsesRegistryCache(t *testing.T) {
+	teardown := gotestingadapter.QuickConfig(t, "resources")
+	defer teardown()
+
+	desc := fontfind.Descriptor{
+		Pattern: "zz-resolve-cache-probe",
+		Style:   font.StyleNormal,
+		Weight:  font.WeightNormal,
+	}
+	callCount := 0
+	testFS := fstest.MapFS{
+		"probe.ttf": &fstest.MapFile{
+			Data: []byte("dummy"),
+		},
+	}
+	resolver := func(d fontfind.Descriptor) (fontfind.ScalableFont, error) {
+		callCount++
+		sfnt := fontfind.ScalableFont{
+			Name:   "probe.ttf",
+			Style:  d.Style,
+			Weight: d.Weight,
+		}
+		sfnt.SetFS(testFS, "probe.ttf")
+		return sfnt, nil
+	}
+
+	f, err := locate.ResolveTypeface(desc, resolver).Typeface()
+	if err != nil {
+		t.Fatalf("expected resolver success, got error: %v", err)
+	}
+	if f.Path() != "probe.ttf" {
+		t.Fatalf("unexpected resolved path: %q", f.Path())
+	}
+	f, err = locate.ResolveTypeface(desc, resolver).Typeface()
+	if err != nil {
+		t.Fatalf("expected cached resolver success, got error: %v", err)
+	}
+	if f.Path() != "probe.ttf" {
+		t.Fatalf("unexpected cached path: %q", f.Path())
+	}
+	if callCount != 1 {
+		t.Fatalf("expected resolver to be called once due to registry cache, got %d", callCount)
+	}
+}
+
+func TestResolveTypefaceReturnsFallbackOnMiss(t *testing.T) {
+	teardown := gotestingadapter.QuickConfig(t, "resources")
+	defer teardown()
+
+	desc := fontfind.Descriptor{
+		Pattern: "zz-no-such-font",
+		Style:   font.StyleItalic,
+		Weight:  font.WeightBold,
+	}
+	f, err := locate.ResolveTypeface(desc).Typeface()
+	if err == nil {
+		t.Fatalf("expected lookup error for missing font")
+	}
+	if f.Name != "Go-Regular.otf" {
+		t.Fatalf("expected fallback Go-Regular.otf, got %q", f.Name)
+	}
+}
+
+func TestResolveTypefaceContextCanceledBeforeStart(t *testing.T) {
+	teardown := gotestingadapter.QuickConfig(t, "resources")
+	defer teardown()
+	//
+	desc := fontfind.Descriptor{
+		Pattern: "zz-canceled-before-start",
+		Style:   font.StyleNormal,
+		Weight:  font.WeightNormal,
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	f, err := locate.ResolveTypefaceContext(ctx, desc).Typeface()
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
+	}
+	if f != fontfind.NullFont {
+		t.Fatalf("expected null font on canceled request")
+	}
+}
+
+func TestResolveTypefaceContextDeadlineExceeded(t *testing.T) {
+	teardown := gotestingadapter.QuickConfig(t, "resources")
+	defer teardown()
+
+	desc := fontfind.Descriptor{
+		Pattern: "zz-canceled-during-resolver",
+		Style:   font.StyleNormal,
+		Weight:  font.WeightNormal,
+	}
+	blocking := func(ctx context.Context, _ fontfind.Descriptor) (fontfind.ScalableFont, error) {
+		select {
+		case <-ctx.Done():
+			return fontfind.NullFont, ctx.Err()
+		case <-time.After(100 * time.Millisecond):
+			return fontfind.NullFont, errors.New("unexpected resolver completion")
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
+	f, err := locate.ResolveTypefaceContext(ctx, desc, blocking).TypefaceContext(ctx)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected context deadline exceeded, got %v", err)
+	}
+	if f != fontfind.NullFont {
+		t.Fatalf("expected null font on deadline exceeded")
+	}
+}
+
+// --- Test IO (+ file system) ------------------------------------------
 
 type testIO struct {
 	fsys fs.FS
@@ -106,9 +212,9 @@ type testIO struct {
 
 func newIO() *testIO {
 	testFS := fstest.MapFS{
-		"tyse-test":    &fstest.MapFile{Mode: fs.ModeDir},
-		"fontconfig":   &fstest.MapFile{Mode: fs.ModeDir},
-		"fontlist.txt": &fstest.MapFile{Data: []byte(fclist)},
+		"tyse-test":               &fstest.MapFile{Mode: fs.ModeDir},
+		"fontconfig":              &fstest.MapFile{Mode: fs.ModeDir},
+		"fontconfig/fontlist.txt": &fstest.MapFile{Data: []byte(fclist)},
 	}
 	return &testIO{
 		fsys: testFS,

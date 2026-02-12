@@ -114,19 +114,35 @@ func (svc *googleService) findGoogleFont(conf schuko.Configuration, pattern stri
 		return fontfind.NullFont, fmt.Errorf("no matching Google font found")
 	}
 	fi := fiList[0]
-	variant := fi.Variants[0] // TODO find variant with highest confidence
+	variant, confidence := selectVariant(fi.Variants, style, weight)
+	if confidence < fontfind.LowConfidence {
+		return fontfind.NullFont, fmt.Errorf("no suitable variant for %s (confidence=%d)", fi.Family, confidence)
+	}
 	cachedir, name, err := svc.cacheGoogleFont(conf, fi, variant)
 	if err != nil {
 		return fontfind.NullFont, err
 	}
 	fsys := svc.io.DirFS(cachedir)
-	return fontfind.ScalableFont{
-		Name:       name,
-		Style:      style,
-		Weight:     weight,
-		FileSystem: fsys,
-		Path:       name,
-	}, nil
+	sfnt := fontfind.ScalableFont{
+		Name:   name,
+		Style:  style,
+		Weight: weight,
+	}
+	sfnt.SetFS(fsys, name)
+	return sfnt, nil
+}
+
+func selectVariant(variants []string, style font.Style, weight font.Weight) (variant string, confidence fontfind.MatchConfidence) {
+	for _, v := range variants {
+		s := fontfind.MatchStyle(v, style)
+		w := fontfind.MatchWeight(v, weight)
+		c := (s + w) / 2
+		if c > confidence {
+			confidence = c
+			variant = v
+		}
+	}
+	return
 }
 
 // FindGoogleFont scans the Google Font Service for fonts matching `pattern` and

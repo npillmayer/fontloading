@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/npillmayer/fontfind"
+	"github.com/npillmayer/fontfind/fontregistry"
 )
 
 // notFound returns an application error for a missing resource.
@@ -18,9 +19,11 @@ type fontPlusErr struct {
 }
 
 // TypefacePromise runs font searching asynchronously in the background.
-// A call to `Typeface()` blocks until font loading is completed.
+// A call to `Typeface()` blocks until font loading is completed, or -- in
+// the case of a context cancellation -- returns an error.
 type TypefacePromise interface {
 	Typeface() (fontfind.ScalableFont, error)
+	TypefaceContext(ctx context.Context) (fontfind.ScalableFont, error)
 }
 
 type fontLoader struct {
@@ -28,7 +31,11 @@ type fontLoader struct {
 }
 
 func (loader fontLoader) Typeface() (fontfind.ScalableFont, error) {
-	return loader.await(context.Background())
+	return loader.TypefaceContext(context.Background())
+}
+
+func (loader fontLoader) TypefaceContext(ctx context.Context) (fontfind.ScalableFont, error) {
+	return loader.await(ctx)
 }
 
 // ResolveTypeface resolves a typefacee with given properties.
@@ -64,18 +71,30 @@ func (loader fontLoader) Typeface() (fontfind.ScalableFont, error) {
 // Typefaces are not returned synchronously, but rather as a promise
 // of kind TypefacePromise (async/await).
 func ResolveTypeface(desc fontfind.Descriptor, resolvers ...FontLocator) TypefacePromise {
-	// TODO include a context parameter
+	ctxResolvers := make([]FontLocatorWithContext, 0, len(resolvers))
+	for _, r := range resolvers {
+		ctxResolvers = append(ctxResolvers, adaptLocator(r))
+	}
+	return ResolveTypefaceContext(context.Background(), desc, ctxResolvers...)
+}
+
+// ResolveTypefaceContext resolves a typeface with context-aware cancellation.
+func ResolveTypefaceContext(ctx context.Context, desc fontfind.Descriptor, resolvers ...FontLocatorWithContext) TypefacePromise {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	ch := make(chan fontPlusErr)
 	go func(ch chan<- fontPlusErr) {
-		result := searchScalableFont(desc, resolvers)
+		result := searchScalableFont(ctx, desc, resolvers)
 		ch <- result
 		close(ch)
 	}(ch)
 	loader := fontLoader{}
-	loader.await = func(ctx context.Context) (fontfind.ScalableFont, error) {
+	// `waitCtx` will be set by the caller using ResolveTypefaceContext(myCtx)
+	loader.await = func(waitCtx context.Context) (fontfind.ScalableFont, error) {
 		select {
-		case <-ctx.Done():
-			return fontfind.NullFont, ctx.Err()
+		case <-waitCtx.Done():
+			return fontfind.NullFont, waitCtx.Err()
 		case r := <-ch:
 			return r.font, r.err
 		}
@@ -83,28 +102,39 @@ func ResolveTypeface(desc fontfind.Descriptor, resolvers ...FontLocator) Typefac
 	return loader
 }
 
-func searchScalableFont(desc fontfind.Descriptor, resolvers []FontLocator) (result fontPlusErr) {
-	// name := fontregistry.NormalizeFontname(desc.Pattern, desc.Style, desc.Weight)
-	// if t, err := fontregistry.GlobalRegistry().Typeface(name); err == nil {
-	// 	result.font = t
-	// 	return
-	// }
+func adaptLocator(r FontLocator) FontLocatorWithContext {
+	return func(_ context.Context, d fontfind.Descriptor) (fontfind.ScalableFont, error) {
+		return r(d)
+	}
+}
+
+func searchScalableFont(ctx context.Context, desc fontfind.Descriptor, resolvers []FontLocatorWithContext) (result fontPlusErr) {
+	if err := ctx.Err(); err != nil {
+		result.err = err
+		return
+	}
+	name := fontregistry.NormalizeFontname(desc.Pattern, desc.Style, desc.Weight)
+	if t, err := fontregistry.GlobalRegistry().Typeface(name); err == nil {
+		result.font = t
+		return
+	}
 	for _, resolver := range resolvers {
-		if f, err := resolver(desc); err == nil {
-			result.font = f
+		if err := ctx.Err(); err != nil {
 			result.err = err
 			return
 		}
+		if f, err := resolver(ctx, desc); err == nil {
+			fontregistry.GlobalRegistry().StoreTypeface(name, f)
+			result.font = f
+			return
+		} else if ctxErr := ctx.Err(); ctxErr != nil {
+			result.err = ctxErr
+			return
+		}
 	}
-	// if f != nil { // if found, enter into font registry
-	// 	f.Fontname = name
-	// 	fontregistry.GlobalRegistry().StoreFont(name, f)
-	// 	result.font, result.err = fontregistry.GlobalRegistry().Typeface(name, size)
-	// 	result.desc.Family = name
-	// 	//fontfind.GlobalRegistry().DebugList()
-	// } else { // use fallback font
-	// 	result.font, _ = fontregistry.GlobalRegistry().Typeface("fallback", size)
-	// 	result.desc.Family = "fallback"
-	// }
+	result.err = notFound(name)
+	if f, err := fontregistry.GlobalRegistry().FallbackTypeface(); err == nil {
+		result.font = f
+	}
 	return result
 }
