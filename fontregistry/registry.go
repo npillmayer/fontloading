@@ -13,7 +13,7 @@ import (
 // Registry is a type for holding information about loaded fonts.
 type Registry struct {
 	sync.Mutex
-	typefaces map[string]fontfind.ScalableFont
+	fonts map[string]fontfind.ScalableFont
 }
 
 var globalFontRegistry *Registry
@@ -31,18 +31,18 @@ func GlobalRegistry() *Registry {
 
 func NewRegistry() *Registry {
 	fr := &Registry{
-		typefaces: make(map[string]fontfind.ScalableFont),
+		fonts: make(map[string]fontfind.ScalableFont),
 	}
 	return fr
 }
 
-const fallbackTypefaceKey = "fallback"
+const fallbackFontKey = "fallback"
 
-// StoreTypeface pushes a typeface into the registry if it isn't contained yet.
+// StoreFont pushes a font into the registry if it isn't contained yet.
 //
-// The typeface will be stored using the normalized font name as a key. If this
+// The font will be stored using the normalized font name as a key. If this
 // key is already associated with a font, that font will not be overridden.
-func (fr *Registry) StoreTypeface(normalizedName string, f fontfind.ScalableFont) {
+func (fr *Registry) StoreFont(normalizedName string, f fontfind.ScalableFont) {
 	if f.Name == "" {
 		tracer().Errorf("registry cannot store null font")
 		return
@@ -51,23 +51,23 @@ func (fr *Registry) StoreTypeface(normalizedName string, f fontfind.ScalableFont
 	defer fr.Unlock()
 	//style, weight := GuessStyleAndWeight(f.Fontname)
 	//fname := NormalizeFontname(f.Fontname, style, weight)
-	if _, ok := fr.typefaces[normalizedName]; !ok {
+	if _, ok := fr.fonts[normalizedName]; !ok {
 		tracer().Debugf("registry stores font %s as %s", f.Name, normalizedName)
-		fr.typefaces[normalizedName] = f
+		fr.fonts[normalizedName] = f
 	}
 }
 
-// Typeface returns a typeface with a given font, style and weight.
-// If a suitable typeface has already been cached, Typeface will return the cached
-// typeface.
+// GetFont returns a font with a given font, style and weight.
+// If a suitable font has already been cached, GetFont will return the cached
+// scalable font.
 //
-// If no typeface can be produced, Typeface will derive one from a system-wide
+// If no font can be produced, GetFont will derive one from a system-wide
 // fallback font and return it, together with an error message.
-func (fr *Registry) Typeface(normalizedName string) (fontfind.ScalableFont, error) {
+func (fr *Registry) GetFont(normalizedName string) (fontfind.ScalableFont, error) {
 	//
 	tracer().Debugf("registry searches for font %s", normalizedName)
 	fr.Lock()
-	if t, ok := fr.typefaces[normalizedName]; ok {
+	if t, ok := fr.fonts[normalizedName]; ok {
 		fr.Unlock()
 		tracer().Infof("registry found font %s", normalizedName)
 		return t, nil
@@ -75,18 +75,18 @@ func (fr *Registry) Typeface(normalizedName string) (fontfind.ScalableFont, erro
 	fr.Unlock()
 	tracer().Infof("registry does not contain font %s", normalizedName)
 	missErr := fmt.Errorf("font %s not found in registry", normalizedName)
-	f, fallbackErr := fr.FallbackTypeface()
+	f, fallbackErr := fr.FallbackFont()
 	if fallbackErr != nil {
 		return fontfind.NullFont, fmt.Errorf("%w; fallback failed: %v", missErr, fallbackErr)
 	}
 	return f, missErr
 }
 
-// FallbackTypeface returns the default fallback typeface from registry cache.
+// FallbackFont returns the default fallback font from registry cache.
 // If absent, it will load and cache the packaged fallback under key "fallback".
-func (fr *Registry) FallbackTypeface() (fontfind.ScalableFont, error) {
+func (fr *Registry) FallbackFont() (fontfind.ScalableFont, error) {
 	fr.Lock()
-	if t, ok := fr.typefaces[fallbackTypefaceKey]; ok {
+	if t, ok := fr.fonts[fallbackFontKey]; ok {
 		fr.Unlock()
 		return t, nil
 	}
@@ -96,21 +96,21 @@ func (fr *Registry) FallbackTypeface() (fontfind.ScalableFont, error) {
 	fr.Lock()
 	defer fr.Unlock()
 	// Another goroutine may have inserted fallback while we were loading.
-	if t, ok := fr.typefaces[fallbackTypefaceKey]; ok {
+	if t, ok := fr.fonts[fallbackFontKey]; ok {
 		return t, nil
 	}
-	tracer().Infof("font registry caches fallback font %s", fallbackTypefaceKey)
-	fr.typefaces[fallbackTypefaceKey] = f
+	tracer().Infof("font registry caches fallback font %s", fallbackFontKey)
+	fr.fonts[fallbackFontKey] = f
 	return f, nil
 }
 
-// LogFontList is a helper function to dump the list of the typefaces konwn to a
+// LogFontList is a helper function to dump the list of the font known to a
 // registry to the tracer (log-level Info).
 func (fr *Registry) LogFontList(tracer tracing.Trace) {
 	level := tracer.GetTraceLevel()
 	tracer.SetTraceLevel(tracing.LevelInfo)
 	tracer.Infof("--- registered fonts ---")
-	for k, v := range fr.typefaces {
+	for k, v := range fr.fonts {
 		tracer.Infof("typeface [%s] = %s @ %v", k, v.Name, v.Path)
 	}
 	tracer.Infof("------------------------")
@@ -134,10 +134,5 @@ func NormalizeFontname(fname string, style xfont.Style, weight xfont.Weight) str
 	case xfont.WeightBold, xfont.WeightExtraBold, xfont.WeightSemiBold:
 		fname += "-bold"
 	}
-	return fname
-}
-
-func appendSize(fname string, size float32) string {
-	fname = fmt.Sprintf("%s-%.2f", fname, size)
 	return fname
 }

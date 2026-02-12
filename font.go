@@ -102,13 +102,6 @@ func (f *ScalableFont) ReadFontData() ([]byte, error) {
 
 var NullFont = ScalableFont{}
 
-func FindTypeface(typefaceName string, style font.Style, weight font.Weight) ([]ScalableFont, error) {
-	if typefaceName == "" {
-		return nil, errors.New("need at least font typeface name")
-	}
-	return nil, errors.New("no font file found")
-}
-
 //go:embed locate/fallbackfont/packaged/Go-Regular.otf
 var fallbackFS embed.FS
 

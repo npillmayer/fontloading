@@ -23,7 +23,7 @@ The package also includes:
 
 ## Resolver Architecture
 
-Typeface resolution is provider-based. Current resolver packages:
+Font resolution is provider-based. Current resolver packages:
 
 - `locate/fallbackfont`: embedded packaged fonts (`go:embed`)
 - `locate/systemfont`: local/system font lookup
@@ -127,4 +127,4 @@ The current direction appears to be:
 - pragmatic fallback-first behavior
 - gradual migration/refactor from earlier resource/location code layout
 
-Near-term value is highest in reliability and contract clarity (tests, fallback behavior, config), then feature depth (TTC and richer matching).
+Near-term value is highest in reliability and contract clarity (tests, fallback behavior, config); feature expansion is not a priority.

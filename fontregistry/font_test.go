@@ -58,12 +58,12 @@ func TestNormalizeFont(t *testing.T) {
 	}
 }
 
-func TestRegistryFallbackTypeface(t *testing.T) {
+func TestRegistryFallbackFont(t *testing.T) {
 	teardown := gotestingadapter.QuickConfig(t, "resources")
 	defer teardown()
 	//
 	fr := NewRegistry()
-	f, err := fr.FallbackTypeface()
+	f, err := fr.FallbackFont()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -72,12 +72,12 @@ func TestRegistryFallbackTypeface(t *testing.T) {
 	}
 }
 
-func TestRegistryTypefaceReturnsFallbackOnMiss(t *testing.T) {
+func TestRegistryFontReturnsFallbackOnMiss(t *testing.T) {
 	teardown := gotestingadapter.QuickConfig(t, "resources")
 	defer teardown()
 	//
 	fr := NewRegistry()
-	f, err := fr.Typeface("font-not-in-registry")
+	f, err := fr.GetFont("font-not-in-registry")
 	if err == nil {
 		t.Fatal("expected miss error from registry lookup")
 	}

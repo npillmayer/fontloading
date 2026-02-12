@@ -30,9 +30,9 @@ func TestLoadPackagedFont(t *testing.T) {
 		Weight:  font.WeightNormal,
 	}
 	fallback := fallbackfont.Find()
-	loader := locate.ResolveTypeface(desc, fallback)
+	loader := locate.ResolveFontLoc(desc, fallback)
 	//time.Sleep(500)
-	_, err := loader.Typeface()
+	_, err := loader.Font()
 	if err != nil {
 		t.Error(err)
 	}
@@ -54,8 +54,8 @@ func TestResolveGoogleFont(t *testing.T) {
 		Weight:  font.WeightNormal,
 	}
 	google := googlefont.Find(conf)
-	loader := locate.ResolveTypeface(desc, google)
-	_, err := loader.Typeface()
+	loader := locate.ResolveFontLoc(desc, google)
+	_, err := loader.Font()
 	if err != nil {
 		t.Error(err)
 	}
@@ -81,8 +81,8 @@ func TestFCFind(t *testing.T) {
 		Weight:  font.WeightNormal,
 	}
 	system := systemfont.Find("tyse-test", newIO())
-	loader := locate.ResolveTypeface(desc, system)
-	f, err := loader.Typeface()
+	loader := locate.ResolveFontLoc(desc, system)
+	f, err := loader.Font()
 	if err != nil {
 		t.Fatalf("expected fixture-based systemfont hit, got error: %v", err)
 	}
@@ -117,14 +117,14 @@ func TestResolveTypefaceUsesRegistryCache(t *testing.T) {
 		return sfnt, nil
 	}
 
-	f, err := locate.ResolveTypeface(desc, resolver).Typeface()
+	f, err := locate.ResolveFontLoc(desc, resolver).Font()
 	if err != nil {
 		t.Fatalf("expected resolver success, got error: %v", err)
 	}
 	if f.Path() != "probe.ttf" {
 		t.Fatalf("unexpected resolved path: %q", f.Path())
 	}
-	f, err = locate.ResolveTypeface(desc, resolver).Typeface()
+	f, err = locate.ResolveFontLoc(desc, resolver).Font()
 	if err != nil {
 		t.Fatalf("expected cached resolver success, got error: %v", err)
 	}
@@ -145,7 +145,7 @@ func TestResolveTypefaceReturnsFallbackOnMiss(t *testing.T) {
 		Style:   font.StyleItalic,
 		Weight:  font.WeightBold,
 	}
-	f, err := locate.ResolveTypeface(desc).Typeface()
+	f, err := locate.ResolveFontLoc(desc).Font()
 	if err == nil {
 		t.Fatalf("expected lookup error for missing font")
 	}
@@ -166,7 +166,7 @@ func TestResolveTypefaceContextCanceledBeforeStart(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	f, err := locate.ResolveTypefaceContext(ctx, desc).Typeface()
+	f, err := locate.ResolveFontLocWithContext(ctx, desc).Font()
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context.Canceled, got %v", err)
 	}
@@ -195,7 +195,7 @@ func TestResolveTypefaceContextDeadlineExceeded(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
 	defer cancel()
-	f, err := locate.ResolveTypefaceContext(ctx, desc, blocking).TypefaceContext(ctx)
+	f, err := locate.ResolveFontLocWithContext(ctx, desc, blocking).FontWithContext(ctx)
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Fatalf("expected context deadline exceeded, got %v", err)
 	}
